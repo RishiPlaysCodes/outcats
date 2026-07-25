@@ -138,3 +138,71 @@ def test_report_counts_and_json():
     assert r.counts_by_severity()["high"] == 1
     assert '"module": "harden"' in r.to_json()
     assert "outcats report" in r.to_html()
+
+
+
+# --------------------------------------------------------------------------
+# New module tests
+# --------------------------------------------------------------------------
+def test_password_policy_audit():
+    from outcats.harden.passwords import audit_password_policy
+
+    report = audit_password_policy()
+    # Should have at least some findings on Linux
+    assert report.findings
+
+
+def test_csv_export():
+    from outcats.common.export import to_csv
+
+    r = Report(module="test", target="t")
+    r.add(Finding("A", "title", Severity.LOW, Status.PASS, detail="x"))
+    csv = to_csv(r)
+    assert "A,title,low,pass" in csv
+
+
+def test_pdf_export_has_print_css():
+    from outcats.common.export import to_pdf_html
+
+    r = Report(module="test", target="t")
+    r.add(Finding("B", "title2", Severity.HIGH, Status.FAIL))
+    html = to_pdf_html(r)
+    assert "@media print" in html
+    assert "outcats report" in html
+
+
+def test_netmap_import_and_table():
+    from outcats.netmap.mapper import NetworkMap, HostEntry
+
+    h = HostEntry(host="10.0.0.1", open_ports=[22, 80], services={22: "ssh", 80: "http"})
+    nm = NetworkMap(hosts=[h], all_ports={22, 80})
+    table = nm.to_table(color=False)
+    assert "10.0.0.1" in table
+    assert "ssh" in table
+
+
+def test_tls_checker_connection_refused():
+    from outcats.tlscheck.checker import check_tls
+
+    result = check_tls("127.0.0.1", port=19999, timeout=0.5)
+    assert result.errors  # should have connection error
+
+
+def test_osint_recon_import():
+    from outcats.osint.recon import DomainInfo, recon_to_report
+
+    info = DomainInfo(
+        domain="example.com",
+        dns_records={"A": ["93.184.216.34"]},
+        security_headers={"Strict-Transport-Security": True, "X-Frame-Options": False},
+        subdomains=["www.example.com"],
+    )
+    report = recon_to_report(info)
+    assert any("DNS A" in f.title for f in report.findings)
+    assert any("Missing" in f.title for f in report.findings)
+
+
+def test_interactive_import():
+    from outcats.interactive import run_interactive
+    # Just verify import works (can't test stdin interaction)
+    assert callable(run_interactive)

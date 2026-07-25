@@ -3,8 +3,14 @@
 Subcommands:
     authorize   Attest authorization and declare an in-scope host list.
     guide       Guided intake: tell it what you know (or nothing); get a plan.
+    gui         Launch the cross-platform web dashboard.
+    interactive Menu-driven interactive shell (TUI).
     harden      Run a CIS/STIG-style hardening audit of the local system.
+    passwords   Password policy & credential hygiene audit.
     scan        Read-only service fingerprint + CVE correlation (authorized hosts).
+    netmap      Network mapper: scan multiple hosts, visualize services.
+    tls         SSL/TLS certificate and protocol checker.
+    osint       Passive OSINT recon for domains you own.
     lab         CTF / practice-lab methodology companion.
     detect      Blue-team log ingestion + detection-rule engine.
 """
@@ -33,12 +39,19 @@ def _emit(report: Report, fmt: str, out: str | None) -> None:
         text = report.to_json()
     elif fmt == "html":
         text = report.to_html()
+    elif fmt == "csv":
+        from .common.export import to_csv
+        text = to_csv(report)
+    elif fmt == "pdf":
+        from .common.export import to_pdf_html
+        text = to_pdf_html(report)
     else:
         text = report.to_text(color=out is None and sys.stdout.isatty())
 
     if out:
         Path(out).write_text(text)
-        print(f"Report written to {out}  ({len(report.findings)} findings)")
+        suffix = " (open in browser -> Print -> Save as PDF)" if fmt == "pdf" else ""
+        print(f"Report written to {out}  ({len(report.findings)} findings){suffix}")
     else:
         print(text)
 
@@ -187,6 +200,69 @@ def cmd_detect(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_netmap(args: argparse.Namespace) -> int:
+    from .netmap.mapper import map_network, netmap_to_report
+
+    try:
+        scope = require_scope()
+        hosts = [h.strip() for h in args.targets.split(",") if h.strip()]
+        nmap = map_network(hosts, scope, ports=_parse_ports(args.ports),
+                           timeout=args.timeout)
+    except AuthorizationError as exc:
+        print(f"[authorization] {exc}", file=sys.stderr)
+        return 2
+    if args.format == "text" and not args.out:
+        print(nmap.to_table(color=sys.stdout.isatty()))
+    else:
+        _emit(netmap_to_report(nmap), args.format, args.out)
+    return 0
+
+
+def cmd_tls(args: argparse.Namespace) -> int:
+    from .authorization import enforce_target
+    from .tlscheck.checker import check_tls, tls_to_report
+
+    try:
+        scope = require_scope()
+        hosts = [h.strip() for h in args.targets.split(",") if h.strip()]
+        results = []
+        for h in hosts:
+            enforce_target(h, scope)
+            results.append(check_tls(h, port=args.port, timeout=args.timeout))
+    except AuthorizationError as exc:
+        print(f"[authorization] {exc}", file=sys.stderr)
+        return 2
+    _emit(tls_to_report(results), args.format, args.out)
+    return 0
+
+
+def cmd_passwords(args: argparse.Namespace) -> int:
+    from .harden.passwords import audit_password_policy
+
+    _emit(audit_password_policy(), args.format, args.out)
+    return 0
+
+
+def cmd_osint(args: argparse.Namespace) -> int:
+    from .osint.recon import recon_domain, recon_to_report
+
+    try:
+        scope = require_scope()
+        info = recon_domain(args.domain, scope)
+    except AuthorizationError as exc:
+        print(f"[authorization] {exc}", file=sys.stderr)
+        return 2
+    _emit(recon_to_report(info), args.format, args.out)
+    return 0
+
+
+def cmd_interactive(args: argparse.Namespace) -> int:
+    from .interactive import run_interactive
+
+    run_interactive()
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Parser
 # ---------------------------------------------------------------------------
@@ -214,7 +290,9 @@ def build_parser() -> argparse.ArgumentParser:
                          "(strongly recommended for public/deployed instances)")
 
     def add_output(sp: argparse.ArgumentParser) -> None:
-        sp.add_argument("--format", choices=["text", "json", "html"], default="text")
+        sp.add_argument("--format", choices=["text", "json", "html", "csv", "pdf"],
+                        default="text",
+                        help="Output format (pdf = print-ready HTML for Save as PDF)")
         sp.add_argument("--out", help="Write report to a file instead of stdout")
 
     # harden
@@ -263,6 +341,36 @@ def build_parser() -> argparse.ArgumentParser:
     drules = dsub.add_parser("rules", help="List loaded detection rules")
     drules.add_argument("--rules", help="Custom rules JSON")
 
+    # netmap
+    nmp = sub.add_parser("netmap", help="Network mapper (multi-host service scan)")
+    nmp.add_argument("--targets", required=True,
+                     help="Comma-separated hosts/IPs (must be in scope)")
+    nmp.add_argument("--ports", default="common",
+                     help="'common', 'all', or list/range")
+    nmp.add_argument("--timeout", type=float, default=1.0)
+    add_output(nmp)
+
+    # tls
+    tp = sub.add_parser("tls", help="SSL/TLS certificate & protocol checker")
+    tp.add_argument("--targets", required=True,
+                    help="Comma-separated HTTPS hosts (must be in scope)")
+    tp.add_argument("--port", type=int, default=443)
+    tp.add_argument("--timeout", type=float, default=5.0)
+    add_output(tp)
+
+    # passwords
+    pwp = sub.add_parser("passwords", help="Password policy & credential hygiene audit")
+    add_output(pwp)
+
+    # osint
+    osp = sub.add_parser("osint", help="Passive OSINT recon for domains you own")
+    osp.add_argument("--domain", required=True,
+                     help="Domain you own (must be in scope)")
+    add_output(osp)
+
+    # interactive
+    sub.add_parser("interactive", help="Menu-driven interactive shell (TUI)")
+
     return p
 
 
@@ -270,8 +378,13 @@ _HANDLERS = {
     "authorize": cmd_authorize,
     "guide": cmd_guide,
     "gui": cmd_gui,
+    "interactive": cmd_interactive,
     "harden": cmd_harden,
+    "passwords": cmd_passwords,
     "scan": cmd_scan,
+    "netmap": cmd_netmap,
+    "tls": cmd_tls,
+    "osint": cmd_osint,
     "lab": cmd_lab,
     "detect": cmd_detect,
 }
