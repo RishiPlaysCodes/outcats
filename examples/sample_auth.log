@@ -1,0 +1,9 @@
+Jul 25 22:10:01 host sshd[1001]: Failed password for invalid user admin from 203.0.113.7 port 51000 ssh2
+Jul 25 22:10:03 host sshd[1002]: Failed password for invalid user root from 203.0.113.7 port 51002 ssh2
+Jul 25 22:10:05 host sshd[1003]: Failed password for invalid user test from 203.0.113.7 port 51004 ssh2
+Jul 25 22:10:07 host sshd[1004]: Failed password for invalid user oracle from 203.0.113.7 port 51006 ssh2
+Jul 25 22:10:09 host sshd[1005]: Failed password for invalid user git from 203.0.113.7 port 51008 ssh2
+Jul 25 22:10:12 host sshd[1006]: Accepted password for deploy from 198.51.100.20 port 52000 ssh2
+Jul 25 22:11:00 host sudo: pam_unix(sudo:auth): authentication failure; logname=bob uid=1000 user=bob
+Jul 25 22:11:05 host sudo: pam_unix(sudo:auth): authentication failure; logname=bob uid=1000 user=bob
+Jul 25 22:11:09 host sudo: pam_unix(sudo:auth): authentication failure; logname=bob uid=1000 user=bob

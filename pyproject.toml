@@ -1,0 +1,30 @@
+[project]
+name = "outcats"
+version = "0.1.0"
+description = "Enterprise-grade DEFENSIVE security platform: hardening audits, read-only vulnerability scanning, CTF/lab training, and blue-team detection. Authorized use only."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "outcats contributors" }]
+keywords = ["security", "hardening", "cis", "vulnerability", "blue-team", "detection", "defensive"]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff", "black", "mypy"]
+
+[project.scripts]
+outcats = "outcats.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["outcats*"]
+
+[tool.setuptools.package-data]
+outcats = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

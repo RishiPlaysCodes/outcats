@@ -1,0 +1,98 @@
+{
+  "_comment": "Methodology checklists for learning offensive security on INTENTIONALLY-VULNERABLE practice labs (HackTheBox, TryHackMe, your own VMs). These are educational study guides, not automation.",
+  "templates": {
+    "generic": {
+      "title": "Generic box methodology",
+      "phases": [
+        {
+          "name": "Enumeration",
+          "steps": [
+            "Record the target IP and scope; confirm it is a practice lab.",
+            "Full TCP port discovery, then service/version enumeration on open ports.",
+            "Enumerate each service methodically (web, SMB, FTP, DNS, etc.).",
+            "Note software names and versions for later CVE research."
+          ]
+        },
+        {
+          "name": "Research",
+          "steps": [
+            "Look up known vulnerabilities for identified versions (offline notes / CVE DBs).",
+            "Read official docs and public write-ups for the technology.",
+            "Map which findings are most promising and why."
+          ]
+        },
+        {
+          "name": "Foothold (lab only)",
+          "steps": [
+            "Understand the vulnerability class before attempting anything.",
+            "Document the intended approach and expected result.",
+            "Capture evidence: what worked, what didn't, and lessons learned."
+          ]
+        },
+        {
+          "name": "Post & Reporting",
+          "steps": [
+            "Enumerate the local system for privilege-escalation learning opportunities.",
+            "Write up the full path clearly enough to reproduce it.",
+            "Note the defensive lesson: how would a blue team detect/prevent this?"
+          ]
+        }
+      ]
+    },
+    "web": {
+      "title": "Web application box",
+      "phases": [
+        {
+          "name": "Mapping",
+          "steps": [
+            "Identify the stack (server, framework, language) from headers and behavior.",
+            "Enumerate directories/endpoints; review robots.txt and source comments.",
+            "Catalogue inputs: forms, params, headers, cookies."
+          ]
+        },
+        {
+          "name": "Analysis",
+          "steps": [
+            "Reason about each OWASP Top 10 category against observed inputs.",
+            "Check authentication/session handling logic.",
+            "Review any file upload / template / deserialization surfaces."
+          ]
+        },
+        {
+          "name": "Defensive lesson",
+          "steps": [
+            "For each finding, note the correct fix (validation, encoding, authz).",
+            "Write a detection idea (WAF rule, log signature)."
+          ]
+        }
+      ]
+    },
+    "smb": {
+      "title": "SMB / Windows services box",
+      "phases": [
+        {
+          "name": "Enumeration",
+          "steps": [
+            "Enumerate shares and null-session exposure.",
+            "Identify OS build and SMB dialect/version.",
+            "List users/groups where the lab exposes them."
+          ]
+        },
+        {
+          "name": "Research",
+          "steps": [
+            "Match the SMB/OS version to known advisories in your notes.",
+            "Understand the vulnerability before proceeding."
+          ]
+        },
+        {
+          "name": "Defensive lesson",
+          "steps": [
+            "Note SMB signing, patch level, and segmentation as mitigations.",
+            "Sketch a detection for anomalous SMB access."
+          ]
+        }
+      ]
+    }
+  }
+}
