@@ -55,6 +55,61 @@
       "window_seconds": 0,
       "mitre": "T1190",
       "guidance": "Review the endpoint for parameterized queries; check WAF and app logs."
+    },
+    {
+      "id": "OC-DET-WEB-CMDI",
+      "name": "OS command injection probe",
+      "severity": "critical",
+      "pattern": "(?P<ip>\\d+\\.\\d+\\.\\d+\\.\\d+).*\"(?:GET|POST) [^\"]*(?:;\\s*(?:cat|id|whoami|uname)|\\|\\s*(?:nc|bash|sh)|%3b|`)",
+      "group_by": "ip",
+      "threshold": 1,
+      "window_seconds": 0,
+      "mitre": "T1059",
+      "guidance": "Treat as attempted RCE; review input handling and isolate the endpoint."
+    },
+    {
+      "id": "OC-DET-WEB-LFI",
+      "name": "Local file inclusion probe",
+      "severity": "high",
+      "pattern": "(?P<ip>\\d+\\.\\d+\\.\\d+\\.\\d+).*\"(?:GET|POST) [^\"]*(?:php://|file://|/proc/self/environ|boot\\.ini)",
+      "group_by": "ip",
+      "threshold": 1,
+      "window_seconds": 0,
+      "mitre": "T1083",
+      "guidance": "Validate include paths; disable remote wrappers; check for data exposure."
+    },
+    {
+      "id": "OC-DET-WEB-LOG4SHELL",
+      "name": "Log4Shell / JNDI injection probe",
+      "severity": "critical",
+      "pattern": "(?P<ip>\\d+\\.\\d+\\.\\d+\\.\\d+).*\\$\\{jndi:(?:ldap|ldaps|rmi|dns)://",
+      "group_by": "ip",
+      "threshold": 1,
+      "window_seconds": 0,
+      "mitre": "T1190",
+      "guidance": "Confirm Log4j version and patch (>=2.17.1); block outbound from app tier."
+    },
+    {
+      "id": "OC-DET-SCANNER-UA",
+      "name": "Known scanner/attack tool user-agent",
+      "severity": "medium",
+      "pattern": "(?P<ip>\\d+\\.\\d+\\.\\d+\\.\\d+).*\"(?:sqlmap|nikto|nmap|masscan|dirbuster|gobuster|wpscan|hydra)",
+      "group_by": "ip",
+      "threshold": 1,
+      "window_seconds": 0,
+      "mitre": "T1595",
+      "guidance": "Automated scanning in progress; consider rate limiting or blocking the source."
+    },
+    {
+      "id": "OC-DET-WIN-LOGON-FAIL",
+      "name": "Repeated Windows logon failures (Event 4625)",
+      "severity": "high",
+      "pattern": "EventID[:=]?\\s*4625.*(?:Account Name|TargetUserName)[:=]\\s*(?P<user>\\S+)",
+      "group_by": "user",
+      "threshold": 5,
+      "window_seconds": 300,
+      "mitre": "T1110",
+      "guidance": "Possible password spraying/brute force; review source workstation and lockout policy."
     }
   ]
 }

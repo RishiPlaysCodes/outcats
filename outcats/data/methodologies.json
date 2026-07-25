@@ -93,6 +93,60 @@
           ]
         }
       ]
+    },
+    "redteam": {
+      "title": "Red-team / adversary-emulation study plan (ATT&CK, labs only)",
+      "_note": "A STUDY checklist mapped to MITRE ATT&CK for learning on intentionally-vulnerable labs you own or are authorized to use. For every offensive concept, record the matching BLUE-TEAM detection and mitigation - understanding both sides is the point.",
+      "phases": [
+        {
+          "name": "Reconnaissance (TA0043)",
+          "steps": [
+            "Study how service/version enumeration reveals attack surface (T1595, T1046).",
+            "Record which recon activity is noisy and how a defender would see it.",
+            "Note the detection: unusual scan volume, uncommon user-agents."
+          ]
+        },
+        {
+          "name": "Initial Access (TA0001)",
+          "steps": [
+            "Understand the vulnerability class behind the lab's entry point (T1190, T1566).",
+            "Document the root cause, not just the trigger.",
+            "Note the mitigation: patching, input validation, MFA, email filtering."
+          ]
+        },
+        {
+          "name": "Execution & Persistence (TA0002 / TA0003)",
+          "steps": [
+            "Learn how code execution maps to logs (T1059) and what artifacts it leaves.",
+            "Study common persistence mechanisms and where they register (T1053, T1543).",
+            "Note the detection: process/command-line logging, autoload auditing."
+          ]
+        },
+        {
+          "name": "Privilege Escalation (TA0004)",
+          "steps": [
+            "Enumerate misconfigurations that enable escalation on the lab host (T1068, T1548).",
+            "Explain WHY each works at the OS level.",
+            "Note the mitigation: least privilege, patching, sudo/UAC hardening."
+          ]
+        },
+        {
+          "name": "Lateral Movement & Exfil (TA0008 / TA0010)",
+          "steps": [
+            "Study how credentials/sessions enable movement in the lab network (T1021, T1550).",
+            "Understand how data staging/exfiltration looks on the wire (T1041).",
+            "Note the detection: segmentation, egress monitoring, anomalous auth."
+          ]
+        },
+        {
+          "name": "Report & Blue-team feedback",
+          "steps": [
+            "Write a clear, reproducible path from entry to objective.",
+            "For each step, pair it with an outcats detection rule or hardening check.",
+            "Propose concrete fixes an owner could apply to close the path."
+          ]
+        }
+      ]
     }
   }
 }

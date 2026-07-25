@@ -5,10 +5,11 @@ security teams actually need into one clean, offline-capable CLI:
 
 | Module | Command | What it does |
 |--------|---------|--------------|
-| Hardening audit | `outcats harden` | CIS/STIG-style configuration audit with severity + remediation |
+| Hardening audit | `outcats harden` | Cross-platform (Linux/macOS/Windows) CIS/STIG-style audit with severity + remediation |
 | Vulnerability scanner | `outcats scan` | Read-only service fingerprint + CVE correlation (no exploitation) |
-| CTF / lab trainer | `outcats lab` | Methodology checklists, notes, and progress tracking for practice labs |
-| Blue-team detection | `outcats detect` | Log ingestion, detection-rule engine, and alerting |
+| CTF / lab trainer | `outcats lab` | Methodology checklists (incl. red-team ATT&CK study plan), notes, progress tracking |
+| Blue-team detection | `outcats detect` | Log ingestion, 10+ detection rules with MITRE mapping, alerting |
+| Web GUI | `outcats gui` | Zero-dependency dashboard in any browser — Windows, Linux, macOS, phone/tablet |
 
 ## Authorized use only
 
@@ -34,12 +35,26 @@ outcats authorize
 # 2. Guided intake — tell it what you know (or nothing) and it guides you
 outcats guide
 
-# 3. Run modules
+# 3. Run modules from the CLI
 outcats harden --level 1 --format html --out report.html
+outcats harden --platform macos          # preview another platform's checks
 outcats scan --target 127.0.0.1 --ports common
 outcats lab start "HTB - Blue" --template smb
-outcats detect run --rules data/detection_rules.json --log /var/log/auth.log
+outcats lab start "ATT&CK study" --template redteam
+outcats detect run --log /var/log/auth.log
+
+# 4. ...or launch the cross-platform web dashboard
+outcats gui                               # then open http://127.0.0.1:8787
 ```
+
+## Cross-platform GUI
+
+`outcats gui` starts a local, dependency-free web dashboard served straight from
+the Python standard library. Open the printed URL in **any** browser — a laptop
+on Windows/macOS/Linux, or a phone/tablet on the same network. It exposes the
+hardening audit, authorized scan, and detection modules with the same read-only
+guarantees and the same authorization gate as the CLI. It binds to `127.0.0.1`
+by default; binding elsewhere requires an explicit `--host` and prints a warning.
 
 ## Design principles
 

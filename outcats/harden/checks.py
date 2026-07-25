@@ -11,12 +11,27 @@ adding coverage is a matter of writing one function.
 from __future__ import annotations
 
 import os
+import platform
 import stat
-from dataclasses import dataclass
+import subprocess
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
 from ..common.report import Finding, Severity, Status
+
+# Canonical platform tags.
+LINUX, MACOS, WINDOWS = "linux", "macos", "windows"
+ALL_PLATFORMS = frozenset({LINUX, MACOS, WINDOWS})
+
+
+def current_platform() -> str:
+    sysname = platform.system().lower()
+    if sysname.startswith("darwin"):
+        return MACOS
+    if sysname.startswith("win"):
+        return WINDOWS
+    return LINUX
 
 
 @dataclass
@@ -26,19 +41,38 @@ class CheckMeta:
     level: int  # CIS profile level (1 = baseline, 2 = defense-in-depth)
     severity: Severity
     func: Callable[[], Finding]
+    platforms: frozenset = field(default=ALL_PLATFORMS)
 
 
 _REGISTRY: list[CheckMeta] = []
 
 
 def check(
-    cid: str, title: str, *, level: int = 1, severity: Severity = Severity.MEDIUM
+    cid: str,
+    title: str,
+    *,
+    level: int = 1,
+    severity: Severity = Severity.MEDIUM,
+    platforms: frozenset | set | None = None,
 ):
+    plats = frozenset(platforms) if platforms else ALL_PLATFORMS
+
     def deco(func: Callable[[], Finding]) -> Callable[[], Finding]:
-        _REGISTRY.append(CheckMeta(cid, title, level, severity, func))
+        _REGISTRY.append(CheckMeta(cid, title, level, severity, func, plats))
         return func
 
     return deco
+
+
+def _run(cmd: list[str], timeout: float = 4.0) -> str | None:
+    """Run a read-only command and return stdout, or None if unavailable."""
+    try:
+        out = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, check=False
+        )
+        return (out.stdout or "") + (out.stderr or "")
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def _finding(
@@ -72,7 +106,8 @@ def _read(path: str) -> str | None:
 # --------------------------------------------------------------------------
 # Filesystem & permissions
 # --------------------------------------------------------------------------
-@check("OC-FS-001", "World-writable /etc/passwd is not permitted", severity=Severity.HIGH)
+@check("OC-FS-001", "World-writable /etc/passwd is not permitted", severity=Severity.HIGH,
+       platforms={LINUX, MACOS})
 def _passwd_perms() -> Finding:
     path = "/etc/passwd"
     p = Path(path)
@@ -90,7 +125,8 @@ def _passwd_perms() -> Finding:
     )
 
 
-@check("OC-FS-002", "/etc/shadow is restricted to root", severity=Severity.CRITICAL)
+@check("OC-FS-002", "/etc/shadow is restricted to root", severity=Severity.CRITICAL,
+       platforms={LINUX})
 def _shadow_perms() -> Finding:
     path = "/etc/shadow"
     p = Path(path)
@@ -110,7 +146,7 @@ def _shadow_perms() -> Finding:
 
 
 @check("OC-FS-003", "No world-writable files in system PATH dirs", level=2,
-       severity=Severity.MEDIUM)
+       severity=Severity.MEDIUM, platforms={LINUX, MACOS})
 def _path_world_writable() -> Finding:
     path_dirs = [d for d in os.environ.get("PATH", "").split(":") if d]
     offenders: list[str] = []
@@ -152,7 +188,8 @@ def _sshd_option(name: str) -> str | None:
     return value
 
 
-@check("OC-SSH-001", "SSH root login is disabled", severity=Severity.HIGH)
+@check("OC-SSH-001", "SSH root login is disabled", severity=Severity.HIGH,
+       platforms={LINUX, MACOS})
 def _ssh_root_login() -> Finding:
     if _read("/etc/ssh/sshd_config") is None:
         return _finding("OC-SSH-001", "SSH PermitRootLogin", Severity.HIGH,
@@ -168,7 +205,7 @@ def _ssh_root_login() -> Finding:
 
 
 @check("OC-SSH-002", "SSH password authentication is disabled", level=2,
-       severity=Severity.MEDIUM)
+       severity=Severity.MEDIUM, platforms={LINUX, MACOS})
 def _ssh_password_auth() -> Finding:
     if _read("/etc/ssh/sshd_config") is None:
         return _finding("OC-SSH-002", "SSH PasswordAuthentication", Severity.MEDIUM,
@@ -184,7 +221,7 @@ def _ssh_password_auth() -> Finding:
 
 
 @check("OC-SSH-003", "SSH protocol uses modern MACs/ciphers", level=2,
-       severity=Severity.LOW)
+       severity=Severity.LOW, platforms={LINUX, MACOS})
 def _ssh_x11() -> Finding:
     if _read("/etc/ssh/sshd_config") is None:
         return _finding("OC-SSH-003", "SSH X11Forwarding", Severity.LOW,
@@ -207,7 +244,8 @@ def _sysctl(key: str) -> str | None:
     return (_read(procpath) or "").strip() or None
 
 
-@check("OC-NET-001", "IP forwarding is disabled on hosts", severity=Severity.MEDIUM)
+@check("OC-NET-001", "IP forwarding is disabled on hosts", severity=Severity.MEDIUM,
+       platforms={LINUX})
 def _ip_forward() -> Finding:
     val = _sysctl("net.ipv4.ip_forward")
     if val is None:
@@ -222,7 +260,8 @@ def _ip_forward() -> Finding:
     )
 
 
-@check("OC-NET-002", "ICMP redirects are not accepted", severity=Severity.MEDIUM)
+@check("OC-NET-002", "ICMP redirects are not accepted", severity=Severity.MEDIUM,
+       platforms={LINUX})
 def _accept_redirects() -> Finding:
     val = _sysctl("net.ipv4.conf.all.accept_redirects")
     if val is None:
@@ -238,7 +277,7 @@ def _accept_redirects() -> Finding:
 
 
 @check("OC-NET-003", "Reverse-path filtering is enabled", level=2,
-       severity=Severity.LOW)
+       severity=Severity.LOW, platforms={LINUX})
 def _rp_filter() -> Finding:
     val = _sysctl("net.ipv4.conf.all.rp_filter")
     if val is None:
@@ -256,7 +295,8 @@ def _rp_filter() -> Finding:
 # --------------------------------------------------------------------------
 # Accounts & auth policy
 # --------------------------------------------------------------------------
-@check("OC-ACC-001", "No non-root accounts have UID 0", severity=Severity.CRITICAL)
+@check("OC-ACC-001", "No non-root accounts have UID 0", severity=Severity.CRITICAL,
+       platforms={LINUX})
 def _uid0() -> Finding:
     text = _read("/etc/passwd")
     if text is None:
@@ -275,7 +315,7 @@ def _uid0() -> Finding:
 
 
 @check("OC-ACC-002", "Password max-age policy is configured", level=1,
-       severity=Severity.LOW)
+       severity=Severity.LOW, platforms={LINUX})
 def _pass_max_days() -> Finding:
     text = _read("/etc/login.defs")
     if text is None:
@@ -297,6 +337,126 @@ def _pass_max_days() -> Finding:
     )
 
 
-def all_checks(level: int = 2) -> list[CheckMeta]:
-    """Return registered checks up to and including the given CIS level."""
-    return [c for c in _REGISTRY if c.level <= level]
+# --------------------------------------------------------------------------
+# macOS checks (read-only; use built-in security tooling)
+# --------------------------------------------------------------------------
+@check("OC-MAC-FW", "Application firewall is enabled", severity=Severity.HIGH,
+       platforms={MACOS})
+def _mac_firewall() -> Finding:
+    fw = "/usr/libexec/ApplicationFirewall/socketfilterfw"
+    out = _run([fw, "--getglobalstate"]) if Path(fw).exists() else None
+    if out is None:
+        return _finding("OC-MAC-FW", "Application firewall is enabled", Severity.HIGH,
+                        True, "socketfilterfw unavailable", "")
+    ok = "enabled" in out.lower()
+    return _finding("OC-MAC-FW", "Application firewall is enabled", Severity.HIGH,
+                    ok=ok, detail=out.strip()[:120],
+                    remediation="Enable: socketfilterfw --setglobalstate on",
+                    refs=["CIS Apple macOS 2.5.2.1"])
+
+
+@check("OC-MAC-GATEKEEPER", "Gatekeeper is enabled", severity=Severity.HIGH,
+       platforms={MACOS})
+def _mac_gatekeeper() -> Finding:
+    out = _run(["spctl", "--status"])
+    if out is None:
+        return _finding("OC-MAC-GATEKEEPER", "Gatekeeper is enabled", Severity.HIGH,
+                        True, "spctl unavailable", "")
+    ok = "assessments enabled" in out.lower()
+    return _finding("OC-MAC-GATEKEEPER", "Gatekeeper is enabled", Severity.HIGH,
+                    ok=ok, detail=out.strip()[:120],
+                    remediation="Enable: sudo spctl --master-enable",
+                    refs=["CIS Apple macOS 2.6.1"])
+
+
+@check("OC-MAC-SIP", "System Integrity Protection (SIP) is enabled",
+       severity=Severity.CRITICAL, platforms={MACOS})
+def _mac_sip() -> Finding:
+    out = _run(["csrutil", "status"])
+    if out is None:
+        return _finding("OC-MAC-SIP", "SIP is enabled", Severity.CRITICAL,
+                        True, "csrutil unavailable", "")
+    ok = "enabled" in out.lower()
+    return _finding("OC-MAC-SIP", "System Integrity Protection (SIP) is enabled",
+                    Severity.CRITICAL, ok=ok, detail=out.strip()[:120],
+                    remediation="Re-enable SIP from Recovery: csrutil enable",
+                    refs=["CIS Apple macOS 5.x"])
+
+
+@check("OC-MAC-FILEVAULT", "FileVault full-disk encryption is on", level=2,
+       severity=Severity.HIGH, platforms={MACOS})
+def _mac_filevault() -> Finding:
+    out = _run(["fdesetup", "status"])
+    if out is None:
+        return _finding("OC-MAC-FILEVAULT", "FileVault is on", Severity.HIGH,
+                        True, "fdesetup unavailable", "")
+    ok = "on" in out.lower()
+    return _finding("OC-MAC-FILEVAULT", "FileVault full-disk encryption is on",
+                    Severity.HIGH, ok=ok, detail=out.strip()[:120],
+                    remediation="Enable FileVault: sudo fdesetup enable",
+                    refs=["CIS Apple macOS 2.5.1.1"])
+
+
+# --------------------------------------------------------------------------
+# Windows checks (read-only; use PowerShell / built-in cmdlets)
+# --------------------------------------------------------------------------
+def _powershell(script: str) -> str | None:
+    return _run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script])
+
+
+@check("OC-WIN-DEFENDER", "Microsoft Defender real-time protection is on",
+       severity=Severity.HIGH, platforms={WINDOWS})
+def _win_defender() -> Finding:
+    out = _powershell("(Get-MpComputerStatus).RealTimeProtectionEnabled")
+    if out is None:
+        return _finding("OC-WIN-DEFENDER", "Defender real-time protection", Severity.HIGH,
+                        True, "Get-MpComputerStatus unavailable", "")
+    ok = "true" in out.lower()
+    return _finding("OC-WIN-DEFENDER", "Microsoft Defender real-time protection is on",
+                    Severity.HIGH, ok=ok, detail=out.strip()[:120],
+                    remediation="Enable: Set-MpPreference -DisableRealtimeMonitoring $false",
+                    refs=["CIS Microsoft Windows 18.x"])
+
+
+@check("OC-WIN-FIREWALL", "All Windows Firewall profiles are enabled",
+       severity=Severity.HIGH, platforms={WINDOWS})
+def _win_firewall() -> Finding:
+    out = _powershell(
+        "(Get-NetFirewallProfile | Select-Object -Expand Enabled) -join ','")
+    if out is None:
+        return _finding("OC-WIN-FIREWALL", "Firewall profiles enabled", Severity.HIGH,
+                        True, "Get-NetFirewallProfile unavailable", "")
+    ok = out.strip() != "" and "false" not in out.lower()
+    return _finding("OC-WIN-FIREWALL", "All Windows Firewall profiles are enabled",
+                    Severity.HIGH, ok=ok, detail=f"profiles enabled = {out.strip()}",
+                    remediation="Enable: Set-NetFirewallProfile -All -Enabled True",
+                    refs=["CIS Microsoft Windows 9.x"])
+
+
+@check("OC-WIN-BITLOCKER", "BitLocker protects the system drive", level=2,
+       severity=Severity.HIGH, platforms={WINDOWS})
+def _win_bitlocker() -> Finding:
+    out = _powershell("(Get-BitLockerVolume -MountPoint $env:SystemDrive)"
+                      ".ProtectionStatus")
+    if out is None:
+        return _finding("OC-WIN-BITLOCKER", "BitLocker on system drive", Severity.HIGH,
+                        True, "Get-BitLockerVolume unavailable", "")
+    ok = "on" in out.lower() or out.strip() == "1"
+    return _finding("OC-WIN-BITLOCKER", "BitLocker protects the system drive",
+                    Severity.HIGH, ok=ok, detail=out.strip()[:120],
+                    remediation="Enable BitLocker on the system drive",
+                    refs=["CIS Microsoft Windows 18.9.x"])
+
+
+def all_checks(level: int = 2, plat: str | None = None) -> list[CheckMeta]:
+    """Return registered checks for `plat` up to and including the CIS level.
+
+    If `plat` is None, the current platform is auto-detected. Pass "all" to
+    return every registered check regardless of platform (useful for tests).
+    """
+    if plat is None:
+        plat = current_platform()
+    return [
+        c for c in _REGISTRY
+        if c.level <= level and (plat == "all" or plat in c.platforms)
+    ]

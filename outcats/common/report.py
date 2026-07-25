@@ -193,6 +193,70 @@ class Report:
             rows="\n".join(rows),
         )
 
+    def _rows_html(self) -> str:
+        rows = []
+        ordered = sorted(
+            self.findings, key=lambda f: (-f.severity.rank, f.status.value)
+        )
+        for f in ordered:
+            rows.append(
+                "<tr class='{sevcls}'>"
+                "<td><span class='status {stcls}'>{st}</span></td>"
+                "<td><span class='sev {sevcls}'>{sev}</span></td>"
+                "<td class='mono'>{fid}</td>"
+                "<td>{title}<div class='detail'>{detail}</div>{fix}{refs}</td>"
+                "</tr>".format(
+                    sevcls=f.severity.value,
+                    stcls=f.status.value,
+                    st=f.status.value.upper(),
+                    sev=f.severity.value.upper(),
+                    fid=html.escape(f.id),
+                    title=html.escape(f.title),
+                    detail=html.escape(f.detail),
+                    fix=(
+                        f"<div class='fix'>fix: {html.escape(f.remediation)}</div>"
+                        if f.remediation and f.status in (Status.FAIL, Status.WARN)
+                        else ""
+                    ),
+                    refs=(
+                        "<div class='refs'>"
+                        + ", ".join(html.escape(r) for r in f.references)
+                        + "</div>"
+                        if f.references
+                        else ""
+                    ),
+                )
+            )
+        return "\n".join(rows)
+
+    def to_html_fragment(self) -> str:
+        """Return summary cards + findings table only (no <html> wrapper).
+
+        Used by the web GUI to embed a report inside the dashboard shell.
+        """
+        st = self.counts_by_status()
+        sv = self.counts_by_severity()
+        generated = time.strftime(
+            "%Y-%m-%d %H:%M:%S", time.localtime(self.generated_at)
+        )
+        return (
+            f"<div class='meta'>module: <b>{html.escape(self.module)}</b> &nbsp;|&nbsp; "
+            f"target: {html.escape(self.target)} &nbsp;|&nbsp; {generated}</div>"
+            "<div class='cards'>"
+            f"<div class='card'><div class='n' style='color:#7fd18c'>{st['pass']}</div><div class='l'>PASS</div></div>"
+            f"<div class='card'><div class='n' style='color:#f28b82'>{st['fail']}</div><div class='l'>FAIL</div></div>"
+            f"<div class='card'><div class='n' style='color:#f2d16b'>{st['warn']}</div><div class='l'>WARN</div></div>"
+            f"<div class='card'><div class='n' style='color:#ff8a8a'>{sv['critical']}</div><div class='l'>CRITICAL</div></div>"
+            f"<div class='card'><div class='n' style='color:#f28b82'>{sv['high']}</div><div class='l'>HIGH</div></div>"
+            f"<div class='card'><div class='n' style='color:#f2d16b'>{sv['medium']}</div><div class='l'>MEDIUM</div></div>"
+            f"<div class='card'><div class='n' style='color:#7fd18c'>{sv['low']}</div><div class='l'>LOW</div></div>"
+            "</div>"
+            "<table><thead><tr><th>Status</th><th>Severity</th><th>ID</th>"
+            "<th>Finding</th></tr></thead><tbody>"
+            f"{self._rows_html()}"
+            "</tbody></table>"
+        )
+
 
 _HTML_TEMPLATE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
