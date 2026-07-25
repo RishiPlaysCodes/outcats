@@ -14,8 +14,10 @@ Security posture:
 
 from __future__ import annotations
 
+import hmac
 import html
 import json
+import os
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -23,6 +25,10 @@ from .. import __version__
 from ..authorization import AuthorizationError, Scope
 from ..common import system
 from ..common.report import Report
+
+# When set (via --token or the OUTCATS_TOKEN env var), every request must carry
+# the matching token. Required for any non-localhost / public deployment.
+_TOKEN: str | None = None
 
 
 def _page() -> str:
@@ -37,6 +43,7 @@ def _page() -> str:
     return _DASHBOARD.replace("{{VERSION}}", __version__) \
         .replace("{{OS}}", html.escape(f"{info.distro} ({info.os_system})")) \
         .replace("{{HOST}}", html.escape(info.hostname)) \
+        .replace("{{TOKEN}}", html.escape(_TOKEN or "")) \
         .replace("{{SCOPE}}", scope_txt)
 
 
@@ -68,11 +75,34 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length).decode("utf-8") if length else ""
         return {k: v[0] for k, v in urllib.parse.parse_qs(raw).items()}
 
+    def _authorized(self) -> bool:
+        """True if no token is configured, or the request carries a valid one."""
+        if _TOKEN is None:
+            return True
+        supplied = self.headers.get("X-Outcats-Token")
+        if supplied is None:
+            query = urllib.parse.urlparse(self.path).query
+            supplied = urllib.parse.parse_qs(query).get("token", [""])[0]
+        return bool(supplied) and hmac.compare_digest(supplied, _TOKEN)
+
+    def _path_only(self) -> str:
+        return urllib.parse.urlparse(self.path).path
+
     # ---- routing ---------------------------------------------------------
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
+        # Health check is intentionally unauthenticated (returns no host data)
+        # so platform health probes work even when a token is required.
+        if self._path_only() == "/healthz":
+            self._send(b'{"status":"ok"}', "application/json")
+            return
+        if not self._authorized():
+            self._send(b"401 Unauthorized - append ?token=YOUR_TOKEN to the URL",
+                       "text/plain", 401)
+            return
+        path = self._path_only()
+        if path in ("/", "/index.html"):
             self._send(_page().encode("utf-8"))
-        elif self.path == "/api/status":
+        elif path == "/api/status":
             info = system.collect()
             scope = Scope.load()
             payload = {
@@ -86,15 +116,20 @@ class Handler(BaseHTTPRequestHandler):
             self._send(b"not found", "text/plain", 404)
 
     def do_POST(self):
+        if not self._authorized():
+            self._send(_error_fragment("Unauthorized: missing or invalid token."),
+                       code=401)
+            return
         form = self._read_form()
+        path = self._path_only()
         try:
-            if self.path == "/api/harden":
+            if path == "/api/harden":
                 from ..harden.audit import run_audit
 
                 level = int(form.get("level", "2"))
                 self._send(_fragment(run_audit(level=level)))
 
-            elif self.path == "/api/detect":
+            elif path == "/api/detect":
                 from ..detect.engine import DetectionEngine, load_rules
                 from ..detect.runner import _SEV
                 from ..common.report import Finding, Status, Severity
@@ -115,7 +150,7 @@ class Handler(BaseHTTPRequestHandler):
                         remediation=a.guidance))
                 self._send(_fragment(rep))
 
-            elif self.path == "/api/scan":
+            elif path == "/api/scan":
                 from ..scan.scanner import run_scan
 
                 scope = Scope.load()
@@ -149,13 +184,35 @@ def _parse_ports(spec: str) -> list[int]:
     return ports or [22, 80, 443]
 
 
-def serve(host: str = "127.0.0.1", port: int = 8787) -> None:
-    if host not in ("127.0.0.1", "localhost", "::1"):
-        print(f"WARNING: binding to {host} exposes the GUI beyond localhost. "
-              "Ensure this is a trusted network.")
+def serve(host: str = "127.0.0.1", port: int = 8787,
+          token: str | None = None) -> None:
+    """Start the dashboard.
+
+    Environment overrides (useful on cloud platforms):
+      PORT           -> port to bind (most PaaS inject this)
+      HOST           -> bind address (use 0.0.0.0 in a container)
+      OUTCATS_TOKEN  -> required access token for every request
+    """
+    global _TOKEN
+
+    host = os.environ.get("HOST", host)
+    port = int(os.environ.get("PORT", port))
+    _TOKEN = token or os.environ.get("OUTCATS_TOKEN") or None
+
+    public = host not in ("127.0.0.1", "localhost", "::1")
+    if public and _TOKEN is None:
+        print("WARNING: binding to a public address WITHOUT a token. Anyone who "
+              "can reach this URL can run audits and read host info.\n"
+              "         Set --token or OUTCATS_TOKEN before exposing it.")
+    elif public:
+        print(f"NOTE: bound to {host} (public). Access requires the token via "
+              "?token=... or the X-Outcats-Token header.")
+
     httpd = ThreadingHTTPServer((host, port), Handler)
-    print(f"outcats GUI running at http://{host}:{port}  (Ctrl+C to stop)")
-    print("Open it in any browser - desktop or phone on the same machine/network.")
+    shown = "127.0.0.1" if host == "0.0.0.0" else host
+    tkn = f"/?token={_TOKEN}" if _TOKEN else "/"
+    print(f"outcats GUI running at http://{shown}:{port}{tkn}  (Ctrl+C to stop)")
+    print("Open it in any browser - desktop or phone.")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
@@ -247,11 +304,14 @@ _DASHBOARD = """<!doctype html>
    t.classList.add('active');
    document.getElementById('p-'+t.dataset.p).classList.add('active');
  });
+ const TOKEN="{{TOKEN}}";
  async function post(url,data,target){
    const el=document.getElementById(target);
    el.innerHTML='<div class="spin">Running...</div>';
    const body=new URLSearchParams(data).toString();
-   const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
+   const headers={'Content-Type':'application/x-www-form-urlencoded'};
+   if(TOKEN){headers['X-Outcats-Token']=TOKEN;}
+   const res=await fetch(url,{method:'POST',headers,body});
    el.innerHTML=await res.text();
  }
  function runHarden(){post('/api/harden',{level:document.getElementById('h-level').value},'r-harden');}

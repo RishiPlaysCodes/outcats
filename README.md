@@ -56,6 +56,38 @@ hardening audit, authorized scan, and detection modules with the same read-only
 guarantees and the same authorization gate as the CLI. It binds to `127.0.0.1`
 by default; binding elsewhere requires an explicit `--host` and prints a warning.
 
+## Deploying the dashboard (free)
+
+The GUI reads `PORT`, `HOST`, and `OUTCATS_TOKEN` from the environment, so it
+runs on most free hosts with no code changes. A `Dockerfile`, `Procfile`, and
+`render.yaml` are included.
+
+> **Heads up:** deployed to the cloud, the hardening audit reflects the *server's*
+> posture, not your own machine. Great for demoing the UI; run it locally to
+> audit your own hosts. Always set `OUTCATS_TOKEN` before exposing it publicly.
+
+**Render.com (Docker blueprint):**
+1. Push this repo to GitHub.
+2. Render -> **New + -> Blueprint** -> pick the repo (`render.yaml` is detected).
+3. Render builds the Dockerfile, injects `PORT`, and generates `OUTCATS_TOKEN`.
+4. Open `https://<your-app>.onrender.com/?token=<the-generated-token>`.
+
+**Any Docker host / Fly.io / Cloud Run:**
+```bash
+docker build -t outcats .
+docker run -p 8787:8787 -e OUTCATS_TOKEN=please-change-me outcats
+# then open http://localhost:8787/?token=please-change-me
+```
+
+**Local test (no deploy, fully free):**
+```bash
+outcats gui                       # localhost only, no token needed
+outcats gui --host 0.0.0.0 --token mytoken --port 8080   # LAN / phone testing
+```
+
+The `/healthz` endpoint is unauthenticated (returns only `{"status":"ok"}`) for
+platform health probes.
+
 ## Design principles
 
 - **Offline-first.** Ships with a local CVE dataset and CIS mappings; no network
