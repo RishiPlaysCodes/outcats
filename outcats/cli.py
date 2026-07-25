@@ -74,10 +74,17 @@ def cmd_guide(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_gui(args: argparse.Namespace) -> int:
+    from .gui.server import serve
+
+    serve(host=args.host, port=args.port)
+    return 0
+
+
 def cmd_harden(args: argparse.Namespace) -> int:
     from .harden.audit import run_audit
 
-    report = run_audit(level=args.level)
+    report = run_audit(level=args.level, plat=args.platform)
     _emit(report, args.format, args.out)
     return 0
 
@@ -197,6 +204,12 @@ def build_parser() -> argparse.ArgumentParser:
     # guide
     sub.add_parser("guide", help="Guided intake; tell it what you know")
 
+    # gui
+    gp = sub.add_parser("gui", help="Launch the cross-platform web dashboard")
+    gp.add_argument("--host", default="127.0.0.1",
+                    help="Bind address (default localhost-only)")
+    gp.add_argument("--port", type=int, default=8787, help="Port (default 8787)")
+
     def add_output(sp: argparse.ArgumentParser) -> None:
         sp.add_argument("--format", choices=["text", "json", "html"], default="text")
         sp.add_argument("--out", help="Write report to a file instead of stdout")
@@ -205,6 +218,9 @@ def build_parser() -> argparse.ArgumentParser:
     hp = sub.add_parser("harden", help="CIS/STIG-style hardening audit (local)")
     hp.add_argument("--level", type=int, choices=[1, 2], default=2,
                     help="CIS profile level (1=baseline, 2=defense-in-depth)")
+    hp.add_argument("--platform", choices=["linux", "macos", "windows", "all"],
+                    default=None,
+                    help="Override platform detection (default: auto-detect)")
     add_output(hp)
 
     # scan
@@ -250,6 +266,7 @@ def build_parser() -> argparse.ArgumentParser:
 _HANDLERS = {
     "authorize": cmd_authorize,
     "guide": cmd_guide,
+    "gui": cmd_gui,
     "harden": cmd_harden,
     "scan": cmd_scan,
     "lab": cmd_lab,

