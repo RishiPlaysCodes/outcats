@@ -1,0 +1,60 @@
+{
+  "_comment": "Blue-team detection rules for outcats. Each rule matches log lines via regex and raises an alert. Thresholded rules fire when N matches occur within a time window from the same actor (e.g. brute-force).",
+  "rules": [
+    {
+      "id": "OC-DET-SSH-BRUTE",
+      "name": "SSH brute-force attempt",
+      "severity": "high",
+      "pattern": "Failed password for (?:invalid user )?(?P<user>\\S+) from (?P<ip>\\d+\\.\\d+\\.\\d+\\.\\d+)",
+      "group_by": "ip",
+      "threshold": 5,
+      "window_seconds": 60,
+      "mitre": "T1110",
+      "guidance": "Investigate the source IP; consider fail2ban, rate limiting, and key-only auth."
+    },
+    {
+      "id": "OC-DET-SSH-ACCEPT-AFTER-FAIL",
+      "name": "Successful SSH login",
+      "severity": "info",
+      "pattern": "Accepted (?:password|publickey) for (?P<user>\\S+) from (?P<ip>\\d+\\.\\d+\\.\\d+\\.\\d+)",
+      "group_by": "ip",
+      "threshold": 1,
+      "window_seconds": 0,
+      "mitre": "T1078",
+      "guidance": "Baseline expected logins; correlate with prior failures from the same IP."
+    },
+    {
+      "id": "OC-DET-SUDO-FAIL",
+      "name": "Repeated sudo authentication failures",
+      "severity": "medium",
+      "pattern": "sudo:.*authentication failure.*user=(?P<user>\\S+)",
+      "group_by": "user",
+      "threshold": 3,
+      "window_seconds": 120,
+      "mitre": "T1548.003",
+      "guidance": "Possible privilege-escalation attempt or misconfigured automation."
+    },
+    {
+      "id": "OC-DET-WEB-PATH-TRAVERSAL",
+      "name": "Path traversal in web request",
+      "severity": "high",
+      "pattern": "(?P<ip>\\d+\\.\\d+\\.\\d+\\.\\d+).*\"(?:GET|POST) [^\"]*(?:\\.\\./|%2e%2e/)",
+      "group_by": "ip",
+      "threshold": 1,
+      "window_seconds": 0,
+      "mitre": "T1083",
+      "guidance": "Inspect the requested path; validate WAF coverage and input canonicalization."
+    },
+    {
+      "id": "OC-DET-WEB-SQLI-PROBE",
+      "name": "SQL injection probe in web request",
+      "severity": "high",
+      "pattern": "(?P<ip>\\d+\\.\\d+\\.\\d+\\.\\d+).*\"(?:GET|POST) [^\"]*(?:union\\s+select|'\\s+or\\s+1=1|sleep\\()",
+      "group_by": "ip",
+      "threshold": 1,
+      "window_seconds": 0,
+      "mitre": "T1190",
+      "guidance": "Review the endpoint for parameterized queries; check WAF and app logs."
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "_comment": "Offline CVE correlation dataset for outcats. This is a small, curated sample for demonstration and offline use. In production, sync from NVD/OSV feeds. Version ranges use simple inclusive lower / exclusive upper bounds.",
+  "_updated": "2026-01-01",
+  "services": {
+    "openssh": [
+      {
+        "cve": "CVE-2023-38408",
+        "severity": "critical",
+        "affected": { "min": "5.5", "max": "9.3p2" },
+        "summary": "Remote code execution in ssh-agent PKCS#11 forwarding under specific conditions.",
+        "fixed_in": "9.3p2",
+        "refs": ["https://www.openssh.com/security.html"]
+      },
+      {
+        "cve": "CVE-2024-6387",
+        "severity": "high",
+        "affected": { "min": "8.5p1", "max": "9.8" },
+        "summary": "regreSSHion: signal-handler race condition may allow RCE on glibc-based Linux.",
+        "fixed_in": "9.8p1",
+        "refs": ["https://www.openssh.com/txt/release-9.8"]
+      }
+    ],
+    "openssl": [
+      {
+        "cve": "CVE-2022-3602",
+        "severity": "high",
+        "affected": { "min": "3.0.0", "max": "3.0.7" },
+        "summary": "X.509 email address 4-byte buffer overflow in punycode decoding.",
+        "fixed_in": "3.0.7",
+        "refs": ["https://www.openssl.org/news/secadv/20221101.txt"]
+      }
+    ],
+    "nginx": [
+      {
+        "cve": "CVE-2019-20372",
+        "severity": "medium",
+        "affected": { "min": "0.7.12", "max": "1.17.7" },
+        "summary": "HTTP request smuggling via error_page in some configurations.",
+        "fixed_in": "1.17.7",
+        "refs": ["https://nginx.org/en/security_advisories.html"]
+      }
+    ],
+    "apache": [
+      {
+        "cve": "CVE-2021-41773",
+        "severity": "critical",
+        "affected": { "min": "2.4.49", "max": "2.4.50" },
+        "summary": "Path traversal and file disclosure/RCE in Apache HTTP Server 2.4.49.",
+        "fixed_in": "2.4.51",
+        "refs": ["https://httpd.apache.org/security/vulnerabilities_24.html"]
+      }
+    ],
+    "vsftpd": [
+      {
+        "cve": "CVE-2011-2523",
+        "severity": "critical",
+        "affected": { "min": "2.3.4", "max": "2.3.5" },
+        "summary": "Backdoor command execution in vsftpd 2.3.4 (malicious upstream tarball).",
+        "fixed_in": "2.3.5",
+        "refs": ["https://nvd.nist.gov/vuln/detail/CVE-2011-2523"]
+      }
+    ]
+  },
+  "port_service_hints": {
+    "21": "ftp",
+    "22": "ssh",
+    "23": "telnet",
+    "25": "smtp",
+    "53": "dns",
+    "80": "http",
+    "110": "pop3",
+    "139": "netbios",
+    "143": "imap",
+    "443": "https",
+    "445": "smb",
+    "3306": "mysql",
+    "3389": "rdp",
+    "5432": "postgresql",
+    "5900": "vnc",
+    "6379": "redis",
+    "8080": "http-alt",
+    "8443": "https-alt"
+  }
+}
