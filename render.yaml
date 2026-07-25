@@ -1,0 +1,15 @@
+# Render.com Blueprint for the outcats dashboard (free web service).
+# In Render: New + -> Blueprint -> connect this repo. Render sets $PORT and
+# builds from the Dockerfile. Set OUTCATS_TOKEN as a secret before going live.
+services:
+  - type: web
+    name: outcats-dashboard
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: OUTCATS_TOKEN
+        generateValue: true   # Render generates a random token; view it in the dashboard
+    healthCheckPath: /healthz

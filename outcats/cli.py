@@ -77,7 +77,7 @@ def cmd_guide(args: argparse.Namespace) -> int:
 def cmd_gui(args: argparse.Namespace) -> int:
     from .gui.server import serve
 
-    serve(host=args.host, port=args.port)
+    serve(host=args.host, port=args.port, token=args.token)
     return 0
 
 
@@ -207,8 +207,11 @@ def build_parser() -> argparse.ArgumentParser:
     # gui
     gp = sub.add_parser("gui", help="Launch the cross-platform web dashboard")
     gp.add_argument("--host", default="127.0.0.1",
-                    help="Bind address (default localhost-only)")
+                    help="Bind address (default localhost-only; use 0.0.0.0 to deploy)")
     gp.add_argument("--port", type=int, default=8787, help="Port (default 8787)")
+    gp.add_argument("--token", default=None,
+                    help="Require this access token on every request "
+                         "(strongly recommended for public/deployed instances)")
 
     def add_output(sp: argparse.ArgumentParser) -> None:
         sp.add_argument("--format", choices=["text", "json", "html"], default="text")
